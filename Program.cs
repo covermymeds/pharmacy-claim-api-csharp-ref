@@ -1,4 +1,9 @@
-﻿using System;
+﻿//-----------------------------------------------------------------------
+// <copyright file="Program.cs" company="CoverMyMeds">
+//     Copyright (c) 2012 CoverMyMeds.  All rights reserved.
+// </copyright>
+//-----------------------------------------------------------------------
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -10,6 +15,21 @@ namespace CoverMyMeds.Claims
 {
     class Program
     {
+        #region Default Constant Values
+
+        private const char STX = '\u0002';
+        private const char ETX = '\u0003';
+
+        // These are sample values, please enter in your account information
+        private const string CMMUser = "YourCMMUsernameHere";
+        private const string CMMUserPassword = "YourCMMUsernamePasswordHere";
+        private const string APIKey = "U2FtcGxlIEFQSSBQYXJ0bmVyIE5hbWU=";
+
+        // Make sure to submit unique information each time or the claims server will return the previously generated request
+        private const string SampleClaim = @"035079D0B1A4        1071804031        20120123        AM07C2H11443628C1CKYAC301C61AM01C419580518C52CATONA LCBDO<BCM1510 ST RT 176CNAOYWHERECOFLCP42345AM07EM1D21439264E103D753746025310E760000D530DE20110826EX6142328850AM03EZ01DB1679652648DRSMITHPM27075438802JRALPH2K101 MAIN STREET2MCENTRALU CITY2NKY2P42330";
+
+        #endregion
+
         /// <summary>
         /// Basic console application to illustrate a .Net call to the CoverMyMeds Pharmacy Claim API
         /// </summary>
@@ -30,41 +50,56 @@ namespace CoverMyMeds.Claims
         private static void TestClaimAPI()
         {
             // Collect claim API parameter values
+            // Message about creating your own account for free on CMM
             Console.Write("Enter in username to submit with claim (leave blank to use console app default): ");
             string username = Console.ReadLine();
-            if (string.IsNullOrEmpty(username)) username = "YourUsernameHere";
+            if (string.IsNullOrEmpty(username)) username = CMMUser;
 
-            Console.Write("Enter in user password to submit with claim (leave blank to use console app default): ");// Backspace Should Not Work
+            Console.Write("Enter in user password to submit with claim (leave blank to use console app default): ");
             string password = ReceiveUserPassword();
 
-            if (string.IsNullOrEmpty(password)) password = "YourPasswordHere";
+            if (string.IsNullOrEmpty(password)) password = CMMUserPassword;
 
+            // Please email CMM to recieve an API key
             Console.Write("Enter in claims api key to submit with claim (leave blank to use console app default): ");
             string api_key = Console.ReadLine();
-            if (string.IsNullOrEmpty(api_key)) api_key = "a4b05a8151b4ddda2739e355aefab48a";
+            if (string.IsNullOrEmpty(api_key)) api_key = APIKey;
 
-            // Make sure to submit unique information each time or the claims server will return the previously generated request
-            string ncpdp_claim = @"035079D0B1A4        1071804031        20120123          AM04C2H11443628C1CKYAC301C61AM01C419580518C52CATONA LCBDO<BCM1510 ST RT 176CNAOYWHERECOFLCP42345AM07EM1D21439264E103D753746025310E760000D530DE20110826EX6142328850AM03EZ01DB1679652648DRSMITHPM27075438802JRALPH2K101 MAIN STREET2MCENTRALX CITY2NKY2P42330";
-            //string ncpdp_claim = @"035079D0B1A4        1071804031        20120123        AM07C2H11443628C1CKYAC301C61AM01C419580518C52CATONA LCBDO<BCM1510 ST RT 176CNAOYWHERECOFLCP42345AM07EM1D21439264E103D753746025310E760000D530DE20110826EX6142328850AM03EZ01DB1679652648DRSMITHPM27075438802JRALPH2K101 MAIN STREET2MCENTRALU CITY2NKY2P42330";
+            Console.Write("Enter in claim (leave blank to use console app default. Appropriate start and end characters will be applied if needed. Press L to load claim from a file): ");
+            string ncpdp_claim = Console.ReadLine();
+            if (string.IsNullOrEmpty(ncpdp_claim))
+            {
+                ncpdp_claim = SampleClaim;
+            }
+            else
+            {
+                if (ncpdp_claim.ToLower().Equals("l"))
+                {
+                    Console.Write("Please enter filename: ");
+                    string ncpdp_fileName = Console.ReadLine();
+                    ncpdp_claim = LoadClaim(ncpdp_fileName);
+                }
+            }
+
+            // Making sure proper start and end characters are in place
+            if (!ncpdp_claim[0].Equals(STX)) ncpdp_claim.Insert(0, STX.ToString());
+            if (!ncpdp_claim[ncpdp_claim.Length - 1].Equals(ETX)) ncpdp_claim += ETX.ToString();
 
             string ClaimURI = @"https://claims.covermymeds.com/cmmimport";
 
             //string ClaimURI_JSON = @"https://claims.covermymeds.com/cmmimport/json";
 
-            byte[] PostBytes = Utilities.ConstructClaimPostData(username, password, api_key, ncpdp_claim, ContructOptionalVariablesForTesting());
+            byte[] PostBytes = Utilities.ConstructClaimPostData(username, password, api_key, ncpdp_claim, ConstructOptionalVariablesForTesting());
 
             try
             {
                 WebResponse claim_response = Utilities.RequestClaim(ClaimURI, PostBytes);
-                using (StreamReader sr = new StreamReader(claim_response.GetResponseStream()))
-                {
-                    string AnswerString = sr.ReadToEnd();
-                    Console.WriteLine("------------------------------------------------");
-                    Console.WriteLine("Successful Claim Response");
-                    Console.WriteLine("------------------------------------------------{0}", System.Environment.NewLine);
-                    Console.WriteLine(AnswerString);
-                    Console.WriteLine("");
-                }
+                string claim_response_content = HTTPResponseContentToString(claim_response);
+                Console.WriteLine("------------------------------------------------");
+                Console.WriteLine("Successful Claim Response");
+                Console.WriteLine("------------------------------------------------{0}", System.Environment.NewLine);
+                Console.WriteLine(claim_response_content);
+                Console.WriteLine("");
             }
             catch (System.Net.WebException ClaimWebException)
             {
@@ -110,13 +145,11 @@ namespace CoverMyMeds.Claims
                 Console.WriteLine("{0}------------------------------------------------{0}Response Message{0}------------------------------------------------{0}", System.Environment.NewLine);
                 Console.WriteLine(ClaimWebException.Message);
 
-                string ErrorContent;
                 Console.WriteLine("{0}------------------------------------------------{0}Response Content{0}------------------------------------------------{0}", System.Environment.NewLine);
-                using (StreamReader sr = new StreamReader(ClaimWebException.Response.GetResponseStream()))
-                {
-                    ErrorContent = sr.ReadToEnd();
-                    Console.WriteLine(ErrorContent);
-                }
+                string ErrorContent;
+                ErrorContent = HTTPResponseContentToString(ClaimWebException.Response);
+                Console.WriteLine(ErrorContent);
+
                 Console.WriteLine("{0}------------------------------------------------{0}Response Content Parsed Message{0}------------------------------------------------{0}", System.Environment.NewLine);
                 int ErrorCount = 1;
                 foreach (string SingleError in ParseErrorResponseHTML(ErrorContent))
@@ -135,10 +168,25 @@ namespace CoverMyMeds.Claims
         #region Console App Helper Functions
 
         /// <summary>
+        /// Write web response content to a string
+        /// </summary>
+        /// <param name="wr">WebResponse to pull content from</param>
+        /// <returns>String of streamed content</returns>
+        private static string HTTPResponseContentToString(WebResponse wr)
+        {
+            string content = "";
+            using (StreamReader sr = new StreamReader(wr.GetResponseStream()))
+            {
+                content = sr.ReadToEnd();
+            }
+            return content;
+        }
+
+        /// <summary>
         /// A collection of values to add as optional parameters for the Claims API call
         /// </summary>
         /// <returns>List of KeyValuePairs encapsulating optional values to submit with claim</returns>
-        private static List<KeyValuePair<string, string>> ContructOptionalVariablesForTesting()
+        private static List<KeyValuePair<string, string>> ConstructOptionalVariablesForTesting()
         {
             List<KeyValuePair<string, string>> OptionalVariables = new List<KeyValuePair<string, string>>();
             OptionalVariables.Add(new KeyValuePair<string, string>("physician_npi", "1233001942"));
@@ -194,6 +242,28 @@ namespace CoverMyMeds.Claims
             }
             Console.WriteLine();
             return UserPassword;
+        }
+
+        /// <summary>
+        /// Returns a string loaded from a filename entered by the user
+        /// It attempts to find the file as if the user entered in a full filename. If the file is not there, it
+        /// looks in the application directory
+        /// </summary>
+        /// <param name="file_name">User submitted filename</param>
+        /// <returns>Claim loaded from file</returns>
+        private static string LoadClaim(string file_name)
+        {
+            if (!File.Exists(file_name))
+            {
+                // Could not find file according to search for full filename, now attempting to locate in solution
+                file_name = Directory.GetParent(System.Environment.CurrentDirectory).Parent.FullName + @"\" + file_name;
+                if (!File.Exists(file_name))
+                    throw new ApplicationException("Invalid Filename submitted");
+            }
+            StreamReader sr = new StreamReader(file_name);
+            string strRet = sr.ReadToEnd();
+            sr.Close(); sr.Dispose();
+            return strRet;
         }
 
         #endregion
