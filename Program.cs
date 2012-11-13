@@ -10,6 +10,7 @@ using System.Text;
 using System.Net;
 using System.IO;
 using System.Text.RegularExpressions;
+using System.Diagnostics;
 
 namespace CoverMyMeds.Claims
 {
@@ -26,7 +27,7 @@ namespace CoverMyMeds.Claims
         private const string APIKey = "U2FtcGxlIEFQSSBQYXJ0bmVyIE5hbWU=";
 
         // Make sure to submit unique information each time or the claims server will return the previously generated request
-        private const string SampleClaim = @"035079D0B1A4        1071804031        20120123        AM07C2H11443628C1CKYAC301C61AM01C419580518C52CATONA LCBDO<BCM1510 ST RT 176CNAOYWHERECOFLCP42345AM07EM1D21439264E103D753746025310E760000D530DE20110826EX6142328850AM03EZ01DB1679652648DRSMITHPM27075438802JRALPH2K101 MAIN STREET2MCENTRALU CITY2NKY2P42330";
+        private const string SampleClaim = @"035079D0B1A4        1071804031        20120123          AM07C2H11443628C1CKYAC301C61AM01C419580518C52CAJOECBRANDOMCM1510 ST RT 176CNAOYWHERECOFLCP42345AM07EM1D21439264E103D753746025310E760000D530DE20110826EX6142328850AM03EZ01DB1679652648DRSMITHPM27075438802JRALPH2K101 MAIN STREET2MCENTRALU CITY2NKY2P42330";
 
         #endregion
 
@@ -100,6 +101,13 @@ namespace CoverMyMeds.Claims
                 Console.WriteLine("------------------------------------------------{0}", System.Environment.NewLine);
                 Console.WriteLine(claim_response_content);
                 Console.WriteLine("");
+                Console.Write("Do you wish to open the response in a browser (y/n): ");
+                // Prompt user to open in default browser.
+                string BrowserLaunchResp = Console.ReadLine();
+                if (string.Compare(BrowserLaunchResp, "y", true) == 0)
+                {
+                    Process.Start(claim_response_content);
+                }
             }
             catch (System.Net.WebException ClaimWebException)
             {
